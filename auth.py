@@ -18,7 +18,6 @@ async def validate_token_middleware(request: Request, call_next):
 
     # Get the Authorization header
     auth_header = request.headers.get("Authorization")
-    print("[Tim debug] auth_header", auth_header)
 
     if not auth_header:
         return JSONResponse(
