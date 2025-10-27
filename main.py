@@ -1,12 +1,15 @@
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from pydantic import BaseModel
 from pymongo.database import Database
 import yfinance as yf
 from auth import validate_token_middleware
 from database import db_mongo
+from models import StockListResponse, StockRecord
 import os
+import math
+from typing import Optional
 
 load_dotenv()
 
@@ -61,10 +64,88 @@ async def sync_stock(request: StockSyncRequest, db: Database = Depends(get_datab
                 {"$set": document},
                 upsert=True
             )
-
-        return {"symbol": request.symbol, "status": "syncing"}
+        return {"symbol": request.symbol, "status": "done"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/stocks", response_model=StockListResponse)
+async def get_stocks(
+        symbol: Optional[str] = Query(None, description="Filter by stock symbol"),
+        page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+        page_size: int = Query(10, ge=1, le=5000, description="Items per page (max 100)"),
+        sort_by: str = Query("date", description="Field to sort by (date, symbol, open, high, low, close, volume)"),
+        sort_order: str = Query("desc", description="Sort order (asc or desc)"),
+        db: Database = Depends(get_database)
+):
+    """
+    Get stocks data with pagination, filtering, and sorting.
+    
+    - **symbol**: Filter by stock symbol (optional)
+    - **page**: Page number (starts from 1)
+    - **page_size**: Number of items per page (1-100)
+    - **sort_by**: Field to sort by (date, symbol, open, high, low, close, volume)
+    - **sort_order**: Sort order (asc or desc)
+    """
+    try:
+        # Build the filter query
+        filter_query = {}
+        if symbol:
+            filter_query["symbol"] = symbol.upper()
+
+        # Validate sort_by field
+        valid_sort_fields = ["date", "symbol", "open", "high", "low", "close", "volume"]
+        if sort_by not in valid_sort_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid sort_by field. Must be one of: {', '.join(valid_sort_fields)}"
+            )
+
+        # Validate sort_order
+        if sort_order not in ["asc", "desc"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid sort_order. Must be 'asc' or 'desc'"
+            )
+
+        # Set sort direction (1 for ascending, -1 for descending)
+        sort_direction = 1 if sort_order == "asc" else -1
+
+        # Get total count for pagination
+        total = db.stocks.count_documents(filter_query)
+
+        # Calculate total pages
+        total_pages = math.ceil(total / page_size) if total > 0 else 0
+
+        # Calculate skip value for pagination
+        skip = (page - 1) * page_size
+
+        # Query the database with filters, sorting, and pagination
+        cursor = db.stocks.find(
+            filter_query,
+            {"_id": 0}  # Exclude MongoDB _id field
+        ).sort(
+            sort_by, sort_direction
+        ).skip(skip).limit(page_size)
+
+        # Convert cursor to list
+        stocks_data = list(cursor)
+
+        # Convert to StockRecord models
+        stocks = [StockRecord(**stock) for stock in stocks_data]
+
+        return StockListResponse(
+            data=stocks,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching stocks: {str(e)}")
 
 
 # Add health check for MongoDB connection
