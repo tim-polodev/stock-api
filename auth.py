@@ -2,9 +2,13 @@ from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 import httpx
 import os
-from typing import Optional, Dict, Any
+import json
+from typing import Dict, Any
 
-AUTH_API_URL = os.getenv("AUTH_API_URL", "https://auth.polodev.com")
+AUTH_API_URL = os.getenv("AUTH_API_URL", "")
+
+ADMIN_DATA = json.loads(os.getenv("ADMIN_DATA", "{}"))
+ADMIN_API_KEYS = os.getenv("ADMIN_API_KEYS", "")
 
 
 async def validate_token_middleware(request: Request, call_next):
@@ -16,6 +20,12 @@ async def validate_token_middleware(request: Request, call_next):
     if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
         return await call_next(request)
 
+    # Get API key from request headers
+    api_key = request.headers.get("x-api-key")
+
+    if api_key and api_key in ADMIN_API_KEYS:
+        request.state.user = ADMIN_DATA
+        return await call_next(request)
     # Get the Authorization header
     auth_header = request.headers.get("Authorization")
 

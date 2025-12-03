@@ -1,6 +1,8 @@
 from dotenv import load_dotenv
+
+load_dotenv()
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from pymongo.database import Database
 import yfinance as yf
@@ -9,9 +11,7 @@ from database import db_mongo
 from models import StockListResponse, StockRecord
 import os
 import math
-from typing import Optional
-
-load_dotenv()
+from typing import Optional, List
 
 MONGO_DB_HOST = os.getenv("MONGO_DB_HOST")
 MONGO_DB_PORT = os.getenv("MONGO_DB_PORT")
@@ -36,6 +36,16 @@ app.middleware("http")(validate_token_middleware)
 class StockSyncRequest(BaseModel):
     symbol: str
     period: str
+
+
+class WatchlistCreate(BaseModel):
+    name: str
+    symbols: List[str]
+
+
+class Watchlist(WatchlistCreate):
+    id: str
+    user_id: str
 
 
 def get_database():
@@ -80,7 +90,7 @@ async def get_stocks(
 ):
     """
     Get stocks data with pagination, filtering, and sorting.
-    
+
     - **symbol**: Filter by stock symbol (optional)
     - **page**: Page number (starts from 1)
     - **page_size**: Number of items per page (1-100)
@@ -146,6 +156,60 @@ async def get_stocks(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching stocks: {str(e)}")
+
+
+@app.post("/watchlist", response_model=Watchlist)
+async def create_watchlist(
+        watchlist: WatchlistCreate,
+        request: Request,
+        db: Database = Depends(get_database)
+):
+    user = getattr(request.state, "user", None)
+    print("[Tim debug] user", user)
+    if not user or "id" not in user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user_id = user["id"]
+
+    watchlist_doc = {
+        "name": watchlist.name,
+        "symbols": watchlist.symbols,
+        "user_id": user_id,
+    }
+
+    if db.watchlists.find_one({"name": watchlist.name, "user_id": user_id}):
+        raise HTTPException(status_code=400, detail="Watchlist with this name already exists")
+
+    result = db.watchlists.insert_one(watchlist_doc)
+
+    return Watchlist(
+        id=str(result.inserted_id),
+        name=watchlist.name,
+        symbols=watchlist.symbols,
+        user_id=user_id
+    )
+
+
+@app.get("/watchlist", response_model=List[Watchlist])
+async def get_watchlists(
+        request: Request,
+        db: Database = Depends(get_database)
+):
+    user = getattr(request.state, "user", None)
+    if not user or "id" not in user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user_id = user["id"]
+
+    watchlists_cursor = db.watchlists.find({"user_id": user_id})
+
+    watchlists = []
+    for w in watchlists_cursor:
+        watchlists.append(Watchlist(
+            id=str(w["_id"]),
+            name=w["name"],
+            symbols=w["symbols"],
+            user_id=w["user_id"]
+        ))
+    return watchlists
 
 
 # Add health check for MongoDB connection
