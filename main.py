@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 
 load_dotenv()
+from bson.objectid import ObjectId, InvalidId
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -38,6 +39,11 @@ class StockSyncRequest(BaseModel):
     period: str
 
 
+class WatchListUpdate(BaseModel):
+    name: Optional[str] = None
+    symbols: Optional[List[str]] = None
+
+
 class WatchlistCreate(BaseModel):
     name: str
     symbols: List[str]
@@ -45,7 +51,13 @@ class WatchlistCreate(BaseModel):
 
 class Watchlist(WatchlistCreate):
     id: str
-    user_id: str
+    name: str
+    symbols: List[str]
+    user_id: int
+
+
+class WatchListResponse(BaseModel):
+    data: List[Watchlist]
 
 
 def get_database():
@@ -189,6 +201,61 @@ async def create_watchlist(
     )
 
 
+@app.patch("/watchlist/{watchlist_id}", response_model=Watchlist)
+async def update_watchlist(
+        watchlist_id: str,
+        watchlist_data: WatchListUpdate,
+        request: Request,
+        db: Database = Depends(get_database)
+):
+    user = getattr(request.state, "user", None)
+    if not user or "id" not in user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user_id = user["id"]
+
+    try:
+        obj_id = ObjectId(watchlist_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid watchlist ID format")
+
+    # Find the existing watchlist
+    existing_watchlist = db.watchlists.find_one({"_id": obj_id, "user_id": user_id})
+    if not existing_watchlist:
+        raise HTTPException(status_code=404, detail="Watchlist not found or you don't have permission to edit it")
+
+    # Prepare the update document
+    update_doc = {}
+    if watchlist_data.name is not None:
+        # Check if the new name is already in use by another watchlist of the same user
+        if watchlist_data.name != existing_watchlist["name"] and db.watchlists.find_one(
+                {"name": watchlist_data.name, "user_id": user_id}):
+            raise HTTPException(status_code=409, detail="Watchlist with this name already exists")
+        update_doc["name"] = watchlist_data.name
+
+    if watchlist_data.symbols is not None:
+        update_doc["symbols"] = watchlist_data.symbols
+
+    # If there's nothing to update, return the existing watchlist
+    if not update_doc:
+        return Watchlist(
+            id=str(existing_watchlist["_id"]),
+            name=existing_watchlist["name"],
+            symbols=existing_watchlist["symbols"],
+            user_id=existing_watchlist["user_id"]
+        )
+
+    # Perform the update
+    db.watchlists.update_one(
+        {"_id": obj_id},
+        {"$set": update_doc}
+    )
+
+    # Fetch the updated document to return it
+    updated_watchlist = db.watchlists.find_one({"_id": obj_id})
+
+    return Watchlist(**updated_watchlist, id=str(updated_watchlist["_id"]))
+
+
 @app.get("/watchlist", response_model=List[Watchlist])
 async def get_watchlists(
         request: Request,
@@ -199,10 +266,10 @@ async def get_watchlists(
         raise HTTPException(status_code=401, detail="Authentication required")
     user_id = user["id"]
 
-    watchlists_cursor = db.watchlists.find({"user_id": user_id})
+    watchlist_cursor = db.watchlists.find({"user_id": user_id})
 
-    watchlists = []
-    for w in watchlists_cursor:
+    watchlists: WatchListResponse = []
+    for w in watchlist_cursor:
         watchlists.append(Watchlist(
             id=str(w["_id"]),
             name=w["name"],

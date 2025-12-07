@@ -26,24 +26,12 @@ MONGO_URI = f"mongodb://{MONGO_DB_USER}:{MONGO_DB_PASSWORD}@{MONGO_DB_HOST}:{MON
 def get_all_unique_symbols():
     """
     Connects to MongoDB and retrieves a unique set of all stock symbols
-    from all user watchlists.
     """
     try:
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
         db = client[MONGO_DB_NAME]
-
-        # Aggregation pipeline to extract unique symbols from all watchlists
-        pipeline = [
-            {"$unwind": "$symbols"},
-            {"$group": {"_id": None, "unique_symbols": {"$addToSet": "$symbols"}}}
-        ]
-
-        result = list(db.watchlists.aggregate(pipeline))
-        client.close()
-
-        if result and "unique_symbols" in result[0]:
-            return result[0]["unique_symbols"]
-        return []
+        results = db.stocks.distinct("symbol")
+        return results
 
     except Exception as e:
         logging.error(f"Error connecting to MongoDB or fetching symbols: {e}")
