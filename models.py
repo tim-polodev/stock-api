@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -17,15 +18,16 @@ class StockData(BaseModel):
                     "High": 152.83,
                     "Low": 149.37,
                     "Close": 152.57,
-                    "Volume": 76033200
+                    "Volume": 76033200,
                 },
-                "timestamp": "2023-01-01T00:00:00.000Z"
+                "timestamp": "2023-01-01T00:00:00.000Z",
             }
         }
 
 
 class StockRecord(BaseModel):
     """Model for stock record from database"""
+
     symbol: str
     date: str
     open: float
@@ -43,13 +45,14 @@ class StockRecord(BaseModel):
                 "high": 152.83,
                 "low": 149.37,
                 "close": 152.57,
-                "volume": 76033200
+                "volume": 76033200,
             }
         }
 
 
 class StockListResponse(BaseModel):
     """Response model for paginated stock list"""
+
     data: List[StockRecord]
     total: int
     page: int
@@ -67,12 +70,12 @@ class StockListResponse(BaseModel):
                         "high": 152.83,
                         "low": 149.37,
                         "close": 152.57,
-                        "volume": 76033200
+                        "volume": 76033200,
                     }
                 ],
                 "total": 100,
                 "page": 1,
                 "page_size": 10,
-                "total_pages": 10
+                "total_pages": 10,
             }
         }

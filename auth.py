@@ -1,9 +1,10 @@
-from fastapi import Request, HTTPException, status
-from fastapi.responses import JSONResponse
-import httpx
-import os
 import json
-from typing import Dict, Any
+import os
+from typing import Any, Dict
+
+import httpx
+from fastapi import HTTPException, Request, status
+from fastapi.responses import JSONResponse
 
 AUTH_API_URL = os.getenv("AUTH_API_URL", "")
 
@@ -32,7 +33,7 @@ async def validate_token_middleware(request: Request, call_next):
     if not auth_header:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"detail": "Authorization header missing"}
+            content={"detail": "Authorization header missing"},
         )
 
     try:
@@ -41,13 +42,13 @@ async def validate_token_middleware(request: Request, call_next):
             response = await client.get(
                 f"{AUTH_API_URL}/api/auth/validateToken",
                 headers={"Authorization": auth_header},
-                timeout=10.0
+                timeout=10.0,
             )
 
             if response.status_code != 200:
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={"detail": "Invalid or expired token"}
+                    content={"detail": "Invalid or expired token"},
                 )
 
             # Parse the validation response
@@ -56,7 +57,7 @@ async def validate_token_middleware(request: Request, call_next):
             if not validation_data.get("valid", False):
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={"detail": "Token validation failed"}
+                    content={"detail": "Token validation failed"},
                 )
 
             # Attach user info to request state for use in route handlers
@@ -65,17 +66,17 @@ async def validate_token_middleware(request: Request, call_next):
     except httpx.TimeoutException:
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"detail": "Authentication service timeout"}
+            content={"detail": "Authentication service timeout"},
         )
     except httpx.RequestError as e:
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"detail": f"Authentication service error: {str(e)}"}
+            content={"detail": f"Authentication service error: {str(e)}"},
         )
     except Exception as e:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": f"Internal server error: {str(e)}"}
+            content={"detail": f"Internal server error: {str(e)}"},
         )
 
     # Proceed to the route handler
@@ -87,13 +88,13 @@ async def validate_token(authorization: str) -> Dict[str, Any]:
     """
     Helper function to validate a token by calling the authentication service.
     Can be used as a dependency in specific routes.
-    
+
     Args:
         authorization: The Authorization header value (e.g., "Bearer <token>")
-    
+
     Returns:
         Dict containing user information if valid
-    
+
     Raises:
         HTTPException: If token is invalid or service is unavailable
     """
@@ -102,13 +103,13 @@ async def validate_token(authorization: str) -> Dict[str, Any]:
             response = await client.get(
                 f"{AUTH_API_URL}/api/auth/validateToken",
                 headers={"Authorization": authorization},
-                timeout=10.0
+                timeout=10.0,
             )
 
             if response.status_code != 200:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid or expired token"
+                    detail="Invalid or expired token",
                 )
 
             validation_data = response.json()
@@ -116,7 +117,7 @@ async def validate_token(authorization: str) -> Dict[str, Any]:
             if not validation_data.get("valid", False):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token validation failed"
+                    detail="Token validation failed",
                 )
 
             return validation_data.get("user")
@@ -124,12 +125,12 @@ async def validate_token(authorization: str) -> Dict[str, Any]:
     except httpx.TimeoutException:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication service timeout"
+            detail="Authentication service timeout",
         )
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Authentication service error: {str(e)}"
+            detail=f"Authentication service error: {str(e)}",
         )
 
 
@@ -137,7 +138,7 @@ def get_current_user(request: Request) -> Dict[str, Any]:
     """
     Dependency to get the current authenticated user from request state.
     Use this in route handlers after the middleware has run.
-    
+
     Example:
         @app.get("/protected")
         async def protected_route(user: dict = Depends(get_current_user)):
@@ -146,6 +147,6 @@ def get_current_user(request: Request) -> Dict[str, Any]:
     if not hasattr(request.state, "user") or request.state.user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
+            detail="Not authenticated",
         )
     return request.state.user

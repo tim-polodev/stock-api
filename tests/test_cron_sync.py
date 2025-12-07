@@ -1,8 +1,9 @@
 # tests/test_cron_sync.py
 
 import unittest
+from unittest.mock import MagicMock, patch
+
 from cron_sync import get_all_unique_symbols
-from unittest.mock import patch, MagicMock
 
 
 class TestGetAllUniqueSymbols(unittest.TestCase):
@@ -38,4 +39,6 @@ class TestGetAllUniqueSymbols(unittest.TestCase):
 
         # Verify that the function returns an empty list and logs the error
         self.assertEqual([], result)
-        mock_logging.error.assert_called_with("Error connecting to MongoDB or fetching symbols: Connection Error")
+        mock_logging.error.assert_called_with(
+            "Error connecting to MongoDB or fetching symbols: Connection Error"
+        )

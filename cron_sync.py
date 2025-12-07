@@ -1,14 +1,15 @@
-import os
-import httpx
-from pymongo import MongoClient
-from dotenv import load_dotenv
 import logging
+import os
+
+import httpx
+from dotenv import load_dotenv
+from pymongo import MongoClient
 
 # --- Setup Logging ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # --- Load Environment Variables ---
-# This ensures that the script can be run from any directory where .env is accessible
+# Ensures that the script can be run from any directory where .env is accessible
 load_dotenv()
 
 # --- Configuration ---
@@ -43,10 +44,7 @@ def sync_stock_data(symbol: str, apikey: str):
     Calls the /stocks/sync endpoint for a given symbol.
     """
     sync_url = f"{API_BASE_URL}/stocks/sync"
-    headers = {
-        "x-api-key": f"{apikey}",
-        "Content-Type": "application/json"
-    }
+    headers = {"x-api-key": f"{apikey}", "Content-Type": "application/json"}
     # Fetching '5d' is safer for a daily job to catch up on weekends or market holidays
     payload = {"symbol": symbol, "period": "5d"}
 
@@ -54,7 +52,9 @@ def sync_stock_data(symbol: str, apikey: str):
         with httpx.Client() as client:
             response = client.post(sync_url, headers=headers, json=payload, timeout=30.0)
             response.raise_for_status()
-            logging.info(f"Successfully synced data for {symbol}. Status: {response.json().get('status')}")
+            logging.info(
+                f"Successfully synced data for {symbol}. Status: {response.json().get('status')}"
+            )
     except httpx.HTTPStatusError as e:
         logging.error(f"Error syncing {symbol}: HTTP {e.response.status_code} - {e.response.text}")
     except httpx.RequestError as e:
@@ -79,7 +79,9 @@ def main():
         logging.info("No symbols found in any watchlist. Nothing to sync.")
         return
 
-    logging.info(f"Found {len(symbols_to_sync)} unique symbols to sync: {', '.join(symbols_to_sync)}")
+    logging.info(
+        f"Found {len(symbols_to_sync)} unique symbols to sync: {', '.join(symbols_to_sync)}"
+    )
 
     for symbol in symbols_to_sync:
         sync_stock_data(symbol, CRON_AUTH_TOKEN)

@@ -1,18 +1,20 @@
 from dotenv import load_dotenv
 
 load_dotenv()
-from bson.objectid import ObjectId, InvalidId
+import math
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Query, Request
+from typing import List, Optional
+
+import yfinance as yf
+from bson.objectid import InvalidId, ObjectId
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel
 from pymongo.database import Database
-import yfinance as yf
+
 from auth import validate_token_middleware
 from database import db_mongo
 from models import StockListResponse, StockRecord
-import os
-import math
-from typing import Optional, List
 
 MONGO_DB_HOST = os.getenv("MONGO_DB_HOST")
 MONGO_DB_PORT = os.getenv("MONGO_DB_PORT")
@@ -74,17 +76,17 @@ async def sync_stock(request: StockSyncRequest, db: Database = Depends(get_datab
         for index, row in stock_data.iterrows():
             document = {
                 "symbol": request.symbol,
-                "date": index.strftime('%Y-%m-%d'),
+                "date": index.strftime("%Y-%m-%d"),
                 "open": float(row["Open"]),
                 "high": float(row["High"]),
                 "low": float(row["Low"]),
                 "close": float(row["Close"]),
-                "volume": int(row["Volume"])
+                "volume": int(row["Volume"]),
             }
             db.stocks.update_one(
                 {"symbol": request.symbol, "date": document["date"]},
                 {"$set": document},
-                upsert=True
+                upsert=True,
             )
         return {"symbol": request.symbol, "status": "done"}
     except Exception as e:
@@ -93,12 +95,15 @@ async def sync_stock(request: StockSyncRequest, db: Database = Depends(get_datab
 
 @app.get("/stocks", response_model=StockListResponse)
 async def get_stocks(
-        symbol: Optional[str] = Query(None, description="Filter by stock symbol"),
-        page: int = Query(1, ge=1, description="Page number (starts from 1)"),
-        page_size: int = Query(10, ge=1, le=5000, description="Items per page (max 100)"),
-        sort_by: str = Query("date", description="Field to sort by (date, symbol, open, high, low, close, volume)"),
-        sort_order: str = Query("desc", description="Sort order (asc or desc)"),
-        db: Database = Depends(get_database)
+    symbol: Optional[str] = Query(None, description="Filter by stock symbol"),
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    page_size: int = Query(10, ge=1, le=5000, description="Items per page (max 100)"),
+    sort_by: str = Query(
+        "date",
+        description="Field to sort by (date, symbol, open, high, low, close, volume)",
+    ),
+    sort_order: str = Query("desc", description="Sort order (asc or desc)"),
+    db: Database = Depends(get_database),
 ):
     """
     Get stocks data with pagination, filtering, and sorting.
@@ -116,18 +121,26 @@ async def get_stocks(
             filter_query["symbol"] = symbol.upper()
 
         # Validate sort_by field
-        valid_sort_fields = ["date", "symbol", "open", "high", "low", "close", "volume"]
+        valid_sort_fields = [
+            "date",
+            "symbol",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+        ]
         if sort_by not in valid_sort_fields:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid sort_by field. Must be one of: {', '.join(valid_sort_fields)}"
+                detail=f"Invalid sort_by field. Must be one of: {', '.join(valid_sort_fields)}",
             )
 
         # Validate sort_order
         if sort_order not in ["asc", "desc"]:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid sort_order. Must be 'asc' or 'desc'"
+                detail="Invalid sort_order. Must be 'asc' or 'desc'",
             )
 
         # Set sort direction (1 for ascending, -1 for descending)
@@ -143,12 +156,12 @@ async def get_stocks(
         skip = (page - 1) * page_size
 
         # Query the database with filters, sorting, and pagination
-        cursor = db.stocks.find(
-            filter_query,
-            {"_id": 0}  # Exclude MongoDB _id field
-        ).sort(
-            sort_by, sort_direction
-        ).skip(skip).limit(page_size)
+        cursor = (
+            db.stocks.find(filter_query, {"_id": 0})  # Exclude MongoDB _id field
+            .sort(sort_by, sort_direction)
+            .skip(skip)
+            .limit(page_size)
+        )
 
         # Convert cursor to list
         stocks_data = list(cursor)
@@ -161,7 +174,7 @@ async def get_stocks(
             total=total,
             page=page,
             page_size=page_size,
-            total_pages=total_pages
+            total_pages=total_pages,
         )
 
     except HTTPException:
@@ -172,12 +185,11 @@ async def get_stocks(
 
 @app.post("/watchlist", response_model=Watchlist)
 async def create_watchlist(
-        watchlist: WatchlistCreate,
-        request: Request,
-        db: Database = Depends(get_database)
+    watchlist: WatchlistCreate,
+    request: Request,
+    db: Database = Depends(get_database),
 ):
     user = getattr(request.state, "user", None)
-    print("[Tim debug] user", user)
     if not user or "id" not in user:
         raise HTTPException(status_code=401, detail="Authentication required")
     user_id = user["id"]
@@ -197,16 +209,16 @@ async def create_watchlist(
         id=str(result.inserted_id),
         name=watchlist.name,
         symbols=watchlist.symbols,
-        user_id=user_id
+        user_id=user_id,
     )
 
 
 @app.patch("/watchlist/{watchlist_id}", response_model=Watchlist)
 async def update_watchlist(
-        watchlist_id: str,
-        watchlist_data: WatchListUpdate,
-        request: Request,
-        db: Database = Depends(get_database)
+    watchlist_id: str,
+    watchlist_data: WatchListUpdate,
+    request: Request,
+    db: Database = Depends(get_database),
 ):
     user = getattr(request.state, "user", None)
     if not user or "id" not in user:
@@ -221,15 +233,22 @@ async def update_watchlist(
     # Find the existing watchlist
     existing_watchlist = db.watchlists.find_one({"_id": obj_id, "user_id": user_id})
     if not existing_watchlist:
-        raise HTTPException(status_code=404, detail="Watchlist not found or you don't have permission to edit it")
+        raise HTTPException(
+            status_code=404,
+            detail="Watchlist not found or you don't have permission to edit it",
+        )
 
     # Prepare the update document
     update_doc = {}
     if watchlist_data.name is not None:
         # Check if the new name is already in use by another watchlist of the same user
         if watchlist_data.name != existing_watchlist["name"] and db.watchlists.find_one(
-                {"name": watchlist_data.name, "user_id": user_id}):
-            raise HTTPException(status_code=409, detail="Watchlist with this name already exists")
+            {"name": watchlist_data.name, "user_id": user_id}
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Watchlist with this name already exists",
+            )
         update_doc["name"] = watchlist_data.name
 
     if watchlist_data.symbols is not None:
@@ -241,14 +260,11 @@ async def update_watchlist(
             id=str(existing_watchlist["_id"]),
             name=existing_watchlist["name"],
             symbols=existing_watchlist["symbols"],
-            user_id=existing_watchlist["user_id"]
+            user_id=existing_watchlist["user_id"],
         )
 
     # Perform the update
-    db.watchlists.update_one(
-        {"_id": obj_id},
-        {"$set": update_doc}
-    )
+    db.watchlists.update_one({"_id": obj_id}, {"$set": update_doc})
 
     # Fetch the updated document to return it
     updated_watchlist = db.watchlists.find_one({"_id": obj_id})
@@ -257,10 +273,7 @@ async def update_watchlist(
 
 
 @app.get("/watchlist", response_model=List[Watchlist])
-async def get_watchlists(
-        request: Request,
-        db: Database = Depends(get_database)
-):
+async def get_watchlists(request: Request, db: Database = Depends(get_database)):
     user = getattr(request.state, "user", None)
     if not user or "id" not in user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -270,12 +283,14 @@ async def get_watchlists(
 
     watchlists: WatchListResponse = []
     for w in watchlist_cursor:
-        watchlists.append(Watchlist(
-            id=str(w["_id"]),
-            name=w["name"],
-            symbols=w["symbols"],
-            user_id=w["user_id"]
-        ))
+        watchlists.append(
+            Watchlist(
+                id=str(w["_id"]),
+                name=w["name"],
+                symbols=w["symbols"],
+                user_id=w["user_id"],
+            )
+        )
     return watchlists
 
 

@@ -1,4 +1,5 @@
 import os
+
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 
@@ -11,7 +12,9 @@ MONGO_DB_PASSWORD = os.getenv("MONGO_DB_PASSWORD")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 MONGO_DB_USER = os.getenv("MONGO_DB_USER")
 
-MONGO_URI = f"mongodb://{MONGO_DB_USER}:{MONGO_DB_PASSWORD}@{MONGO_DB_HOST}:{MONGO_DB_PORT}/{MONGO_DB_NAME}"
+MONGO_URI = (
+    f"mongodb://{MONGO_DB_USER}:{MONGO_DB_PASSWORD}@{MONGO_DB_HOST}:{MONGO_DB_PORT}/{MONGO_DB_NAME}"
+)
 
 
 class DBMongo:
@@ -23,7 +26,7 @@ class DBMongo:
         """Connects to MongoDB and selects a database."""
         try:
             self.client = MongoClient(uri)
-            self.client.admin.command('ping')  # Verify connection
+            self.client.admin.command("ping")  # Verify connection
             self.db = self.client[db_name]
             print("Successfully connected to MongoDB. ✅")
         except ConnectionFailure as e:
