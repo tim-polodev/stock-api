@@ -12,3 +12,8 @@ dependencies = [
     "uvicorn>=0.38.0",
     "yfinance>=0.2.65",
 ]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.0",
+]
