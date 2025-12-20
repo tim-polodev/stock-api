@@ -14,7 +14,7 @@ from pymongo.database import Database
 
 from auth import validate_token_middleware
 from database import db_mongo
-from models import StockListResponse, StockRecord
+from models import StockHistoryRecord, StockListResponse, StockRecord
 
 MONGO_DB_HOST = os.getenv("MONGO_DB_HOST")
 MONGO_DB_PORT = os.getenv("MONGO_DB_PORT")
@@ -168,9 +168,20 @@ async def get_stocks(
 
         # Convert to StockRecord models
         stocks = [StockRecord(**stock) for stock in stocks_data]
+        response = StockHistoryRecord(
+            open=[], high=[], low=[], close=[], volume=[], date=[], symbol=symbol
+        )
+
+        for stock in stocks:
+            for key, value in stock.dict().items():
+                if key == "symbol":
+                    continue
+                attr = getattr(response, key)
+                if isinstance(attr, list):
+                    attr.append(value)
 
         return StockListResponse(
-            data=stocks,
+            data=response,
             total=total,
             page=page,
             page_size=page_size,

@@ -50,32 +50,42 @@ class StockRecord(BaseModel):
         }
 
 
+class StockHistoryRecord(BaseModel):
+    open: List[float]
+    close: List[float]
+    high: List[float]
+    low: List[float]
+    volume: List[float]
+    date: List[str]
+    symbol: str
+
+
 class StockListResponse(BaseModel):
     """Response model for paginated stock list"""
 
-    data: List[StockRecord]
+    data: StockHistoryRecord
     total: int
     page: int
     page_size: int
     total_pages: int
 
-    class Config:
-        schema_extra = {
-            "example": {
-                "data": [
-                    {
-                        "symbol": "AAPL",
-                        "date": "2024-01-15",
-                        "open": 150.17,
-                        "high": 152.83,
-                        "low": 149.37,
-                        "close": 152.57,
-                        "volume": 76033200,
-                    }
-                ],
-                "total": 100,
-                "page": 1,
-                "page_size": 10,
-                "total_pages": 10,
-            }
-        }
+    # class Config:
+    #     schema_extra = {
+    #         "example": {
+    #             "data": [
+    #                 {
+    #                     "symbol": "AAPL",
+    #                     "date": "2024-01-15",
+    #                     "open": 150.17,
+    #                     "high": 152.83,
+    #                     "low": 149.37,
+    #                     "close": 152.57,
+    #                     "volume": 76033200,
+    #                 }
+    #             ],
+    #             "total": 100,
+    #             "page": 1,
+    #             "page_size": 10,
+    #             "total_pages": 10,
+    #         }
+    #     }
