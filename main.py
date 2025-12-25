@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 import math
-import os
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
@@ -16,18 +15,10 @@ from auth import validate_token_middleware
 from database import db_mongo
 from models import StockHistoryRecord, StockListResponse, StockRecord
 
-MONGO_DB_HOST = os.getenv("MONGO_DB_HOST")
-MONGO_DB_PORT = os.getenv("MONGO_DB_PORT")
-MONGO_DB_PASSWORD = os.getenv("MONGO_DB_PASSWORD")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
-MONGO_DB_USER = os.getenv("MONGO_DB_USER")
-
-MONGO_URI = f"mongodb://{MONGO_DB_USER}:{MONGO_DB_PASSWORD}@{MONGO_DB_HOST}:{MONGO_DB_PORT}"
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db_mongo.connect(MONGO_URI, MONGO_DB_NAME)
+    db_mongo.connect()
     yield
     db_mongo.close()
 

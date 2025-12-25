@@ -4,17 +4,13 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 
 # MongoDB configuration using environment variables with defaults
-# MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-# DB_NAME = os.getenv("DB_NAME", "stockapi")
 MONGO_DB_HOST = os.getenv("MONGO_DB_HOST")
 MONGO_DB_PORT = os.getenv("MONGO_DB_PORT")
 MONGO_DB_PASSWORD = os.getenv("MONGO_DB_PASSWORD")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 MONGO_DB_USER = os.getenv("MONGO_DB_USER")
 
-MONGO_URI = (
-    f"mongodb://{MONGO_DB_USER}:{MONGO_DB_PASSWORD}@{MONGO_DB_HOST}:{MONGO_DB_PORT}/{MONGO_DB_NAME}"
-)
+MONGO_URI = f"mongodb://{MONGO_DB_USER}:{MONGO_DB_PASSWORD}@{MONGO_DB_HOST}:{MONGO_DB_PORT}"
 
 
 class DBMongo:
@@ -22,7 +18,7 @@ class DBMongo:
         self.client = None
         self.db = None
 
-    def connect(self, uri, db_name):
+    def connect(self, uri=MONGO_URI, db_name=MONGO_DB_NAME):
         """Connects to MongoDB and selects a database."""
         try:
             self.client = MongoClient(uri)
@@ -32,7 +28,7 @@ class DBMongo:
         except ConnectionFailure as e:
             print(f"Could not connect to MongoDB: {e}")
             # Handle the error appropriately (e.g., exit the app)
-            raise
+            raise "Could not connect to MongoDB."
 
     def close(self):
         """Closes the MongoDB connection."""
